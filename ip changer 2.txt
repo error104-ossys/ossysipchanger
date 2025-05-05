@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+import curses
+import subprocess
+import re
+
+def draw_centered_text(stdscr, text, y, color_pair):
+    _, width = stdscr.getmaxyx()
+    x = max((width - len(text)) // 2, 0)
+    stdscr.attron(curses.color_pair(color_pair))
+    stdscr.addstr(y, x, text)
+    stdscr.attroff(curses.color_pair(color_pair))
+
+def validate_ip(ip):
+    # Basic IPv4 validation
+    pattern = re.compile(r"^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$")
+    if not pattern.match(ip):
+        return False
+    parts = ip.split('.')
+    for part in parts:
+        if int(part) < 0 or int(part) > 255:
+            return False
+    return True
+
+def run_command(cmd):
+    try:
+        result = subprocess.run(cmd, shell=True, check=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return True, result.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        return False, e.stderr.strip()
+
+def main(stdscr):
+    # Initialize colors
+    curses.start_color()
+    curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
+
+    stdscr.bkgd(' ', curses.color_pair(1))
+    stdscr.clear()
+    stdscr.refresh()
+
+    # Title
+    draw_centered_text(stdscr, "IP CHANGER", 1, 1)
+
+    stdscr.addstr(3, 2, "Enter the network interface to change IP (e.g. eth0, wlan0): ", curses.color_pair(1))
+    curses.echo()
+    iface = stdscr.getstr(4, 2).decode().strip()
+
+    while True:
+        stdscr.addstr(6, 2, "Enter the new IPv4 address (e.g. 192.168.1.100): ", curses.color_pair(1))
+        new_ip = stdscr.getstr(7, 2).decode().strip()
+        if validate_ip(new_ip):
+            break
+        else:
+            stdscr.addstr(8, 2, "Invalid IP address format. Please try again.", curses.color_pair(1))
+            stdscr.clrtoeol()
+            stdscr.refresh()
+            stdscr.move(7,2)
+            stdscr.clrtoeol()
+
+    stdscr.addstr(9, 2, f"Changing IP of interface {iface} to {new_ip} ...", curses.color_pair(1))
+    stdscr.refresh()
+
+    # Flush current IP addresses on interface
+    success_flush, output_flush = run_command(f"sudo ip addr flush dev {iface}")
+    if not success_flush:
+        stdscr.addstr(11, 2, f"Failed to flush addresses: {output_flush}", curses.color_pair(1))
+        stdscr.getch()
+        return
+
+    # Add new IP address with /24 subnet mask by default
+    success_add, output_add = run_command(f"sudo ip addr add {new_ip}/24 dev {iface}")
+    if not success_add:
+        stdscr.addstr(11, 2, f"Failed to add new IP: {output_add}", curses.color_pair(1))
+        stdscr.getch()
+        return
+
+    # Bring the interface up
+    success_up, output_up = run_command(f"sudo ip link set dev {iface} up")
+    if not success_up:
+        stdscr.addstr(11, 2, f"Failed to bring interface up: {output_up}", curses.color_pair(1))
+        stdscr.getch()
+        return
+
+    stdscr.addstr(11, 2, f"IP address changed successfully to {new_ip} on {iface}!", curses.color_pair(1))
+    stdscr.addstr(13, 2, "Press any key to exit.", curses.color_pair(1))
+    stdscr.getch()
+
+if __name__ == "__main__":
+    curses.wrapper(main)
