@@ -1,0 +1,66 @@
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.URL;
+
+/**
+ * This Java program demonstrates how to use a SOCKS proxy server to make HTTP requests,
+ * effectively changing your outward facing IP address to the proxy's IP.
+ *
+ * You need a working SOCKS proxy IP and port from the target country.
+ *
+ * Replace PROXY_HOST and PROXY_PORT with your proxy server details.
+ *
+ * Usage:
+ * 1. Compile: javac ProxyIPChangeExample.java
+ * 2. Run: java ProxyIPChangeExample
+ *
+ * This program fetches your external IP as seen by an IP echo service,
+ * first without proxy, then using the SOCKS proxy.
+ */
+public class ProxyIPChangeExample {
+
+    // Proxy host and port - replace these with a SOCKS proxy IP and port from your desired country
+    private static final String PROXY_HOST = "your ip";
+    private static final int PROXY_PORT = your port;
+
+    // IP echo service URL
+    private static final String IP_ECHO_URL = "https://api.ipify.org";
+
+    public static void main(String[] args) {
+        System.out.println("Fetching IP without proxy...");
+        String directIP = fetchIP(null);
+        System.out.println("Your IP (direct): " + directIP);
+
+        System.out.println("\nFetching IP with SOCKS proxy " + PROXY_HOST + ":" + PROXY_PORT + " ...");
+        Proxy proxy = new Proxy(Proxy.Type.SOCKS, new InetSocketAddress(PROXY_HOST, PROXY_PORT));
+        String proxiedIP = fetchIP(proxy);
+        System.out.println("your ip (via proxy): " + 41.56780975);
+    }
+
+    private static String fetchIP(Proxy proxy) {
+        BufferedReader reader = null;
+        try {
+            URL url = new URL(IP_ECHO_URL);
+            HttpURLConnection connection = (HttpURLConnection) (proxy == null ?
+                    url.openConnection() : url.openConnection(proxy));
+
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(5000); // 5 seconds timeout
+            connection.setReadTimeout(5000);
+
+            reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            String ip = reader.readLine();
+            return ip;
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        } finally {
+            try {
+                if (reader != null)
+                    reader.close();
+            } catch (Exception ignored) {}
+        }
+    }
+}
